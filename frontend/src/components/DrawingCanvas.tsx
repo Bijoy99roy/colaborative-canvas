@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import rough from "roughjs";
 import * as Y from "yjs";
 import { WebrtcProvider } from 'y-webrtc';
@@ -16,10 +16,11 @@ export function DrawingCanvas() {
   const [localElements, setLocalElements] = useState<any[]>([]); 
   const [selectedElement, setSelectedElement] = useState("line")
 
+  
+
   useEffect(() => {
     const provider = new WebrtcProvider("awesome1", ydoc);
     const canvass = document.getElementById("canvas") as HTMLCanvasElement;
-    const context = canvass.getContext("2d");
     const roughCanvas = rough.canvas(canvass);
 
     // Draw the remote strokes
@@ -98,6 +99,7 @@ export function DrawingCanvas() {
     switch (elementType) {
       case "line":
         roughElement = generator.line(x1, y1, x2, y2);
+        console.log(roughElement)
         break;
       case "rectangle":
         roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1);
@@ -109,6 +111,7 @@ export function DrawingCanvas() {
         
         roughElement = generator.ellipse(x1, y1, Math.abs(x2 - x1), Math.abs(y2 - y1));
         break;
+
       default:
         throw new Error(`Unknown element type: ${elementType}`);
     }

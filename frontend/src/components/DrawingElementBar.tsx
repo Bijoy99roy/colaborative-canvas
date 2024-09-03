@@ -1,6 +1,8 @@
 import React, { Dispatch, SetStateAction, useState } from 'react';
+import { FaMinus, FaRegCircle, FaRegSquare } from 'react-icons/fa';
+import { PiCursorFill } from 'react-icons/pi';
 
-export function DrawingElementBar({onSelectElement}: {onSelectElement: Dispatch<SetStateAction<string>>}) {
+export function DrawingElementBar({onSelectElement}: Readonly<{onSelectElement: Dispatch<SetStateAction<string>>}>) {
 
   const [selectedOption, setSelectedOption] = useState('none');
 
@@ -10,16 +12,21 @@ export function DrawingElementBar({onSelectElement}: {onSelectElement: Dispatch<
   };
 
   return (
-    <div className="flex justify-center">
-      <div className="flex gap-2">
+    <div className="flex justify-center ">
+      <div className="mt-5 border rounded-lg shadow-xl">
+        <div className='flex gap-x-5 my-3 mx-3 '>
         <input
           type="radio"
           name="drawing"
           value="none"
           checked={selectedOption === 'none'}
           onChange={handleOptionChange}
+          className="hidden"
+          id="none"
         />
-        <label>None</label>
+        <label htmlFor="none" className={selectedOption === 'none' ? "cursor-pointer bg-blue-200 p-2 rounded-md": "cursor-pointer p-2 hover:bg-blue-50 rounded-md"}>
+          <PiCursorFill color={selectedOption === 'none' ? 'black' : 'grey'}/>
+        </label>
 
         <input
           type="radio"
@@ -27,8 +34,12 @@ export function DrawingElementBar({onSelectElement}: {onSelectElement: Dispatch<
           value="line"
           checked={selectedOption === 'line'}
           onChange={handleOptionChange}
+          className="hidden"
+          id="line"
         />
-        <label>Line</label>
+        <label htmlFor="line" className={selectedOption === 'line' ? "cursor-pointer bg-blue-200 p-2 rounded-md": "cursor-pointer p-2 hover:bg-blue-50 rounded-md"}>
+          <FaMinus color={selectedOption === 'line' ? 'black' : 'grey'} />
+        </label>
 
         <input
           type="radio"
@@ -36,8 +47,12 @@ export function DrawingElementBar({onSelectElement}: {onSelectElement: Dispatch<
           value="rectangle"
           checked={selectedOption === 'rectangle'}
           onChange={handleOptionChange}
+          className="hidden"
+          id="rectangle"
         />
-        <label>Rectangle</label>
+        <label htmlFor="rectangle" className={selectedOption === 'rectangle' ? "cursor-pointer bg-blue-200 p-2 rounded-md": "cursor-pointer p-2 hover:bg-blue-50 rounded-md"}>
+          <FaRegSquare color={selectedOption === 'rectangle' ? 'black' : 'grey'} />
+        </label>
 
         <input
           type="radio"
@@ -45,17 +60,26 @@ export function DrawingElementBar({onSelectElement}: {onSelectElement: Dispatch<
           value="ellipse"
           checked={selectedOption === 'ellipse'}
           onChange={handleOptionChange}
+          className="hidden"
+          id="ellipse"
         />
-        <label>ellipse</label>
+        <label htmlFor="ellipse" className={selectedOption === 'ellipse' ? "cursor-pointer bg-blue-200 p-2 rounded-md": "cursor-pointer p-2 hover:bg-blue-50 rounded-md"}>
+          <FaRegCircle color={selectedOption === 'ellipse' ? 'black' : 'grey'} />
+        </label>
 
-        <input
+        </div>
+        {/* <input
           type="radio"
           name="drawing"
           value="circle"
           checked={selectedOption === 'circle'}
           onChange={handleOptionChange}
+          className="hidden"
+          id="circle"
         />
-        <label>circle</label>
+        <label htmlFor="circle" className="cursor-pointer">
+          <FaCircle color={selectedOption === 'circle' ? 'black' : 'grey'} />
+        </label> */}
       </div>
     </div>
   );
