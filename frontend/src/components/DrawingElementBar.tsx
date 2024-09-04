@@ -13,7 +13,7 @@ export function DrawingElementBar({onSelectElement}: Readonly<{onSelectElement: 
 
   return (
     <div className="flex justify-center ">
-      <div className="mt-5 border rounded-lg shadow-xl">
+      <div className="border rounded-lg shadow-xl">
         <div className='flex gap-x-5 my-3 mx-3 '>
         <input
           type="radio"
