@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import rough from "roughjs";
 import * as Y from "yjs";
 import { WebrtcProvider } from 'y-webrtc';
 import { v4 as uuidv4 } from 'uuid';
 import { DrawingElementBar } from './DrawingElementBar';
-import { PiCursorFill } from 'react-icons/pi';
 
 const generator = rough.generator();
 const ydoc = new Y.Doc();
@@ -14,10 +13,13 @@ export function DrawingCanvas() {
   const [localElements, setLocalElements] = useState<any[]>([]);
   const [selectedElement, setSelectedElement] = useState("line");
   const [sessionId, setSessionId] = useState<string | null>(null);
-  // const [awareness, setAwareness] = useState<any>(null);
+  const provider = useRef<any>(null);
+  const awareness = useRef<any>(null);
+
 
   const ystrokes = ydoc.getArray('strokes');
-  let awareness:any = null;
+  
+
   useEffect(() => {
     // Refer to: https://www.youtube.com/watch?v=Dkn72yYEqNk by Y community
 
@@ -35,7 +37,7 @@ export function DrawingCanvas() {
     }
 
     if (sessionId) {
-      const provider = new WebrtcProvider(sessionId, ydoc);
+      provider.current = new WebrtcProvider(sessionId, ydoc);
       const canvass = document.getElementById("canvas") as HTMLCanvasElement;
       const roughCanvas = rough.canvas(canvass);
       const usernames = [
@@ -72,13 +74,13 @@ export function DrawingCanvas() {
         "#FF5733",  // Coral
         "#3357FF"   // Royal Blue
       ];
+      awareness.current = provider.current.awareness
       
-      awareness = provider.awareness
       if (awareness){
-        console.log("lol")
-        awareness.setLocalStateField('user', {name: getRandomValueFromArray(usernames), color: getRandomValueFromArray(colorHexValues)})
-        awareness.on('change', (event:any) => {
-
+        console.log("awareness")
+        awareness.current.setLocalStateField('user', {name: getRandomValueFromArray(usernames), color: getRandomValueFromArray(colorHexValues)})
+        awareness.current.on('update', (event:any) => {
+          console.log(event)
           const context = canvass.getContext("2d");
           context?.clearRect(0, 0, canvass.width, canvass.height);
         
@@ -90,10 +92,10 @@ export function DrawingCanvas() {
           });
         
           localElements.forEach(localElement => roughCanvas.draw(localElement.roughElement));
-        
+          
           // Draw remote cursors
-          awareness.getStates().forEach((state:any, clientID:any) => {
-            if (clientID === awareness.clientID) {
+          awareness.current.getStates().forEach((state:any, clientID:any) => {
+            if (clientID === awareness.current.clientID) {
               return;
             }
             const pos = state.pos;
@@ -102,10 +104,10 @@ export function DrawingCanvas() {
               return;
             }
             if (context){
-              context?.beginPath();
-              context?.arc(pos.x, pos.y, 5, 0, 2 * Math.PI);
+              context.beginPath();
+              context.arc(pos.x, pos.y, 5, 0, 2 * Math.PI);
               context.fillStyle = state.user.color;
-              context?.fill();
+              context.fill();
             }
             
           });
@@ -126,34 +128,44 @@ export function DrawingCanvas() {
       });
 
       return () => {
-        provider.destroy();
+        provider.current.destroy();
+        awareness.current = null;
       };
     }
   }, [ydoc, sessionId, ystrokes]);
 
   const handleMouseDown = (event: React.MouseEvent, selectedElement: any) => {
-    if (awareness){
-      awareness.setLocalStateField('pos', { x: event.clientX, y: event.clientY })
-    }
-    setDrawing(true);
-    // Below calculation helps in correcting the mouse pointer that is getting offset due to other components
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect();
     const clientX = event.clientX - rect.left;
     const clientY = event.clientY - rect.top;
+    if (awareness){
+      console.log("hwllo")
+      awareness.current.setLocalStateField('pos', { x: clientX, y: clientY })
+      // console.log(awareness.getStates())
+      console.log("hii")
+      
+    } 
+    setDrawing(true);
+    // Below calculation helps in correcting the mouse pointer that is getting offset due to other components
+    
     const element = createElement(clientX, clientY, clientX, clientY, selectedElement);
     setLocalElements([element]);
   };
 
   function handleMouseMove(event: React.MouseEvent, selectedElement: any) {
-    if (awareness){
-      awareness.setLocalStateField('pos', { x: event.clientX, y: event.clientY })
-    }
-    
-    if (!drawing) return;
-    
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect();
     const clientX = event.clientX - rect.left;
     const clientY = event.clientY - rect.top;
+    if (awareness){
+          console.log("hwllo")
+          awareness.current.setLocalStateField('pos', { x: clientX, y: clientY })
+          // console.log(awareness.getStates())
+          console.log("hii")
+          
+        } 
+        
+    if (!drawing) return;
+  
     const index = localElements.length - 1;
     const { x1, y1 } = localElements[index];
     const updatedElement = createElement(x1, y1, clientX, clientY, selectedElement);
@@ -177,10 +189,7 @@ export function DrawingCanvas() {
 
   };
 
-  const handleMouseUp = (event: React.MouseEvent) => {
-    if (awareness){
-      awareness.setLocalStateField('pos', { x: event.clientX, y: event.clientY })
-    }
+  const handleMouseUp = () => {
     setDrawing(false);
 
     ydoc.transact(() => {
@@ -190,6 +199,7 @@ export function DrawingCanvas() {
     });
 
     setLocalElements([]);
+
   };
 
 
