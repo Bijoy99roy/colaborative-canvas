@@ -8,11 +8,44 @@ import { DrawingElementBar } from './DrawingElementBar';
 const generator = rough.generator();
 const ydoc = new Y.Doc();
 
+function distance(a: any, b: any) {
+  return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2))
+}
+
+function isWithinElement(x: number, y:number, element: any) {
+  
+  if(element.toArray().length < 1) return;
+  console.log(element.toArray()[0])
+  const {elementType, x1, x2, y1, y2} = element.toArray()[0] 
+  if (elementType === "rectangle") {
+    const minX = Math.min(x1, x2)
+    const maxX = Math.max(x1, x2)
+    const minY = Math.min(y1, y2)
+    const maxY = Math.max(y1, y2)
+
+    return x >= minX && x <= maxX && y >= minY && y <= maxY;
+  } else if (elementType === "line") {
+    const a = { x: x1, y: y1}
+    const b = { x: x2, y: y2} 
+    const c = { x, y }
+    const offset = distance(a, b) - (distance(a, c) + distance(b, c))
+    return Math.abs(offset) < 1
+    
+  } else if (elementType === "circle") {
+      const a = 1
+  }
+}
+
+function getElementAyPosition(x: number, y:number, elements: any) {
+  return elements.toArray().find((element: any) => isWithinElement(x,y,element))
+}
+
 export function DrawingCanvas() {
-  const [drawing, setDrawing] = useState(false);
+  const [action, setAction] = useState('none');
   const [localElements, setLocalElements] = useState<any[]>([]);
-  const [selectedElement, setSelectedElement] = useState("line");
+  const [selectedElement, setSelectedElement] = useState("selection");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [selectedElementId, setSelectedElementId] = useState<any>(null);
   const provider = useRef<any>(null);
   const awareness = useRef<any>(null);
 
@@ -80,7 +113,7 @@ export function DrawingCanvas() {
         console.log("awareness")
         awareness.current.setLocalStateField('user', {name: getRandomValueFromArray(usernames), color: getRandomValueFromArray(colorHexValues)})
         awareness.current.on('update', (event:any) => {
-          console.log(event)
+
           const context = canvass.getContext("2d");
           context?.clearRect(0, 0, canvass.width, canvass.height);
         
@@ -99,7 +132,6 @@ export function DrawingCanvas() {
               return;
             }
             const pos = state.pos;
-            console.log(pos)
             if (!pos) {
               return;
             }
@@ -135,28 +167,62 @@ export function DrawingCanvas() {
   }, [ydoc, sessionId, ystrokes]);
 
   const handleMouseDown = (event: React.MouseEvent, selectedElement: any) => {
+    // Below calculation helps in correcting the mouse pointer that is getting offset due to other components
+    
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect();
     const clientX = event.clientX - rect.left;
     const clientY = event.clientY - rect.top;
-    if (awareness){
-      console.log("hwllo")
+    if (awareness.current){
+
       awareness.current.setLocalStateField('pos', { x: clientX, y: clientY })
       // console.log(awareness.getStates())
-      console.log("hii")
+
       
-    } 
-    setDrawing(true);
-    // Below calculation helps in correcting the mouse pointer that is getting offset due to other components
+    }
+    if (selectedElement == "selection"){
+      
+      const element = getElementAyPosition(clientX, clientY, ystrokes)
+      if (element) {
+        setAction("moving")
+        setSelectedElementId(element)
+      }
+    } else {
+      setAction('drawing');
     
-    const element = createElement(clientX, clientY, clientX, clientY, selectedElement);
+    const id = localElements.length - 1
+    const element = createElement(id, clientX, clientY, clientX, clientY, selectedElement);
     setLocalElements([element]);
+    }
+    
+    
   };
+
+  function updateElements(id:number, x1: number, y1: number, x2: number, y2: number, elementType: string) {
+    console.log(localElements)
+    const updatedElement = createElement(id, x1, y1, x2, y2, elementType);
+      const elementCopy = [...localElements];
+      elementCopy[id] = updatedElement;
+      setLocalElements(elementCopy);
+
+      const canvass = document.getElementById("canvas") as HTMLCanvasElement;
+      const context = canvass.getContext("2d");
+      const roughCanvas = rough.canvas(canvass);
+      context?.clearRect(0, 0, canvass.width, canvass.height);
+      
+
+      ystrokes.toArray().forEach((strokeArray: any) => {
+        strokeArray.toArray().forEach((stroke: any) => {
+          roughCanvas.draw(stroke.roughElement);
+        });
+      });
+      localElements.forEach(localElement => roughCanvas.draw(localElement.roughElement));
+  }
 
   function handleMouseMove(event: React.MouseEvent, selectedElement: any) {
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect();
     const clientX = event.clientX - rect.left;
     const clientY = event.clientY - rect.top;
-    if (awareness){
+    if (awareness.current){
           console.log("hwllo")
           awareness.current.setLocalStateField('pos', { x: clientX, y: clientY })
           // console.log(awareness.getStates())
@@ -164,40 +230,71 @@ export function DrawingCanvas() {
           
         } 
         
-    if (!drawing) return;
+    if (action === "drawing") {
+      const index = localElements.length - 1;
+      const { x1, y1 } = localElements[index];
+      updateElements(index, x1, y1, clientX, clientY, selectedElement)
+      // const updatedElement = createElement(index, x1, y1, clientX, clientY, selectedElement);
+      // const elementCopy = [...localElements];
+      // elementCopy[index] = updatedElement;
+      // setLocalElements(elementCopy);
+
+      // const canvass = document.getElementById("canvas") as HTMLCanvasElement;
+      // const context = canvass.getContext("2d");
+      // const roughCanvas = rough.canvas(canvass);
+      // context?.clearRect(0, 0, canvass.width, canvass.height);
+      
+
+      // ystrokes.toArray().forEach((strokeArray: any) => {
+      //   strokeArray.toArray().forEach((stroke: any) => {
+      //     roughCanvas.draw(stroke.roughElement);
+      //   });
+      // });
+
+      // localElements.forEach(localElement => roughCanvas.draw(localElement.roughElement));
+    } else if(action === "moving") {
+      if (selectedElementId){
+        console.log(selectedElementId.toArray()[0])
+        const {elementType, id, x1, x2, y1, y2} = selectedElementId.toArray()[0] 
+        // const { elementType, id, x1, x2, y1, y2 } = selectedElementId;
+        console.log(elementType)
+        const width = x2 - x1;
+        const height = y2 - y1;
+        updateElements(id, clientX, clientY, clientX + width, clientY + height, elementType)
+      }
+      
+    }
   
-    const index = localElements.length - 1;
-    const { x1, y1 } = localElements[index];
-    const updatedElement = createElement(x1, y1, clientX, clientY, selectedElement);
-    const elementCopy = [...localElements];
-    elementCopy[index] = updatedElement;
-    setLocalElements(elementCopy);
-
-    const canvass = document.getElementById("canvas") as HTMLCanvasElement;
-    const context = canvass.getContext("2d");
-    const roughCanvas = rough.canvas(canvass);
-    context?.clearRect(0, 0, canvass.width, canvass.height);
     
-
-    ystrokes.toArray().forEach((strokeArray: any) => {
-      strokeArray.toArray().forEach((stroke: any) => {
-        roughCanvas.draw(stroke.roughElement);
-      });
-    });
-
-    localElements.forEach(localElement => roughCanvas.draw(localElement.roughElement));
 
   };
 
   const handleMouseUp = () => {
-    setDrawing(false);
+    if (selectedElementId){
+      const {id} = selectedElementId.toArray()[0] 
+      // ystrokes.toArray().forEach((strokeArray: any) => {
+      //   return strokeArray.toArray().fliter((stroke: any) => {
+      //     stroke.id != id
+      //   });
+      // });
+      ydoc.transact(() => {
+        const currentPath = new Y.Array();
+        currentPath.push(localElements);
+        ystrokes.delete(id)
+        ystrokes.insert(id, [currentPath]);
+      });
 
-    ydoc.transact(() => {
-      const currentPath = new Y.Array();
-      currentPath.push(localElements);
-      ystrokes.push([currentPath]);
-    });
-
+    }else{
+      ydoc.transact(() => {
+        const currentPath = new Y.Array();
+        currentPath.push(localElements);
+        ystrokes.push([currentPath]);
+      });
+    }
+    console.log(ystrokes.toArray().length)
+    
+    setAction("none");
+    setSelectedElementId(null)
     setLocalElements([]);
 
   };
@@ -214,7 +311,7 @@ function createSession() {
     alert(`Session created! Share this URL: ${currentUrl.toString()}`);
 };
 
-  function createElement(x1: number, y1: number, x2: number, y2: number, elementType: string) {
+  function createElement(id:number, x1: number, y1: number, x2: number, y2: number, elementType: string) {
     let roughElement;
 
     switch (elementType) {
@@ -234,7 +331,7 @@ function createSession() {
         throw new Error(`Unknown element type: ${elementType}`);
     }
 
-    return { x1, y1, x2, y2, roughElement };
+    return {id,  x1, y1, x2, y2, elementType, roughElement };
   }
 
   return (

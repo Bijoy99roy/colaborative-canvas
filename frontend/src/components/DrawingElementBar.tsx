@@ -18,14 +18,14 @@ export function DrawingElementBar({onSelectElement}: Readonly<{onSelectElement: 
         <input
           type="radio"
           name="drawing"
-          value="none"
-          checked={selectedOption === 'none'}
+          value="selection"
+          checked={selectedOption === 'selection'}
           onChange={handleOptionChange}
           className="hidden"
-          id="none"
+          id="selection"
         />
-        <label htmlFor="none" className={selectedOption === 'none' ? "cursor-pointer bg-blue-200 p-2 rounded-md": "cursor-pointer p-2 hover:bg-blue-50 rounded-md"}>
-          <PiCursorFill color={selectedOption === 'none' ? 'black' : 'grey'}/>
+        <label htmlFor="selection" className={selectedOption === 'selection' ? "cursor-pointer bg-blue-200 p-2 rounded-md": "cursor-pointer p-2 hover:bg-blue-50 rounded-md"}>
+          <PiCursorFill color={selectedOption === 'selection' ? 'black' : 'grey'}/>
         </label>
 
         <input
