@@ -5,6 +5,8 @@ import { WebrtcProvider } from 'y-webrtc';
 import { v4 as uuidv4 } from 'uuid';
 import { DrawingElementBar } from './DrawingElementBar';
 
+//TODO: Fix all the types 
+
 const generator = rough.generator();
 const ydoc = new Y.Doc();
 
@@ -32,7 +34,8 @@ function isWithinElement(x: number, y:number, element: any) {
     return Math.abs(offset) < 1
     
   } else if (elementType === "circle") {
-      const a = 1
+      const a = 1;
+      
   }
 }
 
@@ -50,7 +53,7 @@ export function DrawingCanvas() {
   const awareness = useRef<any>(null);
 
 
-  const ystrokes = ydoc.getArray('strokes');
+  const ystrokes: Y.Array<Y.Array<any>> = ydoc.getArray('strokes');
   
 
   useEffect(() => {
@@ -124,7 +127,7 @@ export function DrawingCanvas() {
             });
           });
         
-          localElements.forEach(localElement => roughCanvas.draw(localElement.roughElement));
+
           
           // Draw remote cursors
           awareness.current.getStates().forEach((state:any, clientID:any) => {
@@ -175,7 +178,7 @@ export function DrawingCanvas() {
     if (awareness.current){
 
       awareness.current.setLocalStateField('pos', { x: clientX, y: clientY })
-      // console.log(awareness.getStates())
+
 
       
     }
@@ -184,14 +187,28 @@ export function DrawingCanvas() {
       const element = getElementAyPosition(clientX, clientY, ystrokes)
       if (element) {
         setAction("moving")
-        setSelectedElementId(element)
+        const offsetX = clientX - element.toArray()[0]["x1"]
+        const offsetY = clientY - element.toArray()[0]["y1"]
+        console.log(element.toArray())
+        const updatedElement = {...element.toArray()[0], offsetX, offsetY}
+        setSelectedElementId(updatedElement)
+        console.log(updatedElement)
+        console.log(selectedElementId)
       }
     } else {
       setAction('drawing');
     
-    const id = localElements.length - 1
+    const id = ystrokes.toArray().length
     const element = createElement(id, clientX, clientY, clientX, clientY, selectedElement);
-    setLocalElements([element]);
+    console.log(element)
+  
+    ydoc.transact(() => {
+      const currentPath = new Y.Array();
+      currentPath.push([element]);
+      console.log(currentPath.toArray())
+      ystrokes.push([currentPath]);
+    });
+
     }
     
     
@@ -200,10 +217,15 @@ export function DrawingCanvas() {
   function updateElements(id:number, x1: number, y1: number, x2: number, y2: number, elementType: string) {
     console.log(localElements)
     const updatedElement = createElement(id, x1, y1, x2, y2, elementType);
-      const elementCopy = [...localElements];
-      elementCopy[id] = updatedElement;
-      setLocalElements(elementCopy);
-
+      ydoc.transact(() => {
+        const currentPath = new Y.Array();
+        currentPath.push([updatedElement]);
+        
+        ystrokes.delete(id)
+        ystrokes.insert(id, [currentPath]);
+        
+      });
+      console.log(ystrokes.toArray())
       const canvass = document.getElementById("canvas") as HTMLCanvasElement;
       const context = canvass.getContext("2d");
       const roughCanvas = rough.canvas(canvass);
@@ -211,6 +233,7 @@ export function DrawingCanvas() {
       
 
       ystrokes.toArray().forEach((strokeArray: any) => {
+        console.log(strokeArray)
         strokeArray.toArray().forEach((stroke: any) => {
           roughCanvas.draw(stroke.roughElement);
         });
@@ -223,44 +246,37 @@ export function DrawingCanvas() {
     const clientX = event.clientX - rect.left;
     const clientY = event.clientY - rect.top;
     if (awareness.current){
-          console.log("hwllo")
+
           awareness.current.setLocalStateField('pos', { x: clientX, y: clientY })
-          // console.log(awareness.getStates())
-          console.log("hii")
+
           
         } 
         
     if (action === "drawing") {
-      const index = localElements.length - 1;
-      const { x1, y1 } = localElements[index];
-      updateElements(index, x1, y1, clientX, clientY, selectedElement)
-      // const updatedElement = createElement(index, x1, y1, clientX, clientY, selectedElement);
-      // const elementCopy = [...localElements];
-      // elementCopy[index] = updatedElement;
-      // setLocalElements(elementCopy);
 
-      // const canvass = document.getElementById("canvas") as HTMLCanvasElement;
-      // const context = canvass.getContext("2d");
-      // const roughCanvas = rough.canvas(canvass);
-      // context?.clearRect(0, 0, canvass.width, canvass.height);
+      const index = ystrokes.toArray().length-1;
+      if (ystrokes.toArray().length > 0){
+        console.log(ystrokes.toArray()[index].toArray())
+      }
+      
       
 
-      // ystrokes.toArray().forEach((strokeArray: any) => {
-      //   strokeArray.toArray().forEach((stroke: any) => {
-      //     roughCanvas.draw(stroke.roughElement);
-      //   });
-      // });
-
-      // localElements.forEach(localElement => roughCanvas.draw(localElement.roughElement));
+      const { x1, y1 } = ystrokes.toArray()[index].toArray()[0];
+      console.log(`x1: ${x1}`)
+      updateElements(index, x1, y1, clientX, clientY, selectedElement)
+      
+ 
     } else if(action === "moving") {
       if (selectedElementId){
-        console.log(selectedElementId.toArray()[0])
-        const {elementType, id, x1, x2, y1, y2} = selectedElementId.toArray()[0] 
-        // const { elementType, id, x1, x2, y1, y2 } = selectedElementId;
+        console.log(selectedElementId)
+        const {elementType, id, x1, x2, y1, y2, offsetX, offsetY} = selectedElementId
+  
         console.log(elementType)
         const width = x2 - x1;
         const height = y2 - y1;
-        updateElements(id, clientX, clientY, clientX + width, clientY + height, elementType)
+        const newX1 = clientX - offsetX;
+        const newY1 = clientY - offsetY;
+        updateElements(id, newX1, newY1, newX1 + width, newY1 + height, elementType)
       }
       
     }
@@ -270,32 +286,12 @@ export function DrawingCanvas() {
   };
 
   const handleMouseUp = () => {
-    if (selectedElementId){
-      const {id} = selectedElementId.toArray()[0] 
-      // ystrokes.toArray().forEach((strokeArray: any) => {
-      //   return strokeArray.toArray().fliter((stroke: any) => {
-      //     stroke.id != id
-      //   });
-      // });
-      ydoc.transact(() => {
-        const currentPath = new Y.Array();
-        currentPath.push(localElements);
-        ystrokes.delete(id)
-        ystrokes.insert(id, [currentPath]);
-      });
-
-    }else{
-      ydoc.transact(() => {
-        const currentPath = new Y.Array();
-        currentPath.push(localElements);
-        ystrokes.push([currentPath]);
-      });
-    }
-    console.log(ystrokes.toArray().length)
-    
     setAction("none");
     setSelectedElementId(null)
     setLocalElements([]);
+    
+    
+    
 
   };
 
