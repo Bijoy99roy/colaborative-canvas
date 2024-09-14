@@ -14,33 +14,46 @@ function distance(a: any, b: any) {
   return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2))
 }
 
-function isWithinElement(x: number, y:number, element: any) {
+function nearPoint(x: number, y: number, x1: number, y1: number, name: string) {
+  return Math.abs(x - x1) < 5 && Math.abs(y - y1) < 5 ? name : null;
+}
+
+function positionWithinElement(x: number, y:number, element: any) {
   
   if(element.toArray().length < 1) return;
-  console.log(element.toArray()[0])
   const {elementType, x1, x2, y1, y2} = element.toArray()[0] 
   if (elementType === "rectangle") {
-    const minX = Math.min(x1, x2)
-    const maxX = Math.max(x1, x2)
-    const minY = Math.min(y1, y2)
-    const maxY = Math.max(y1, y2)
+    const topLeft = nearPoint(x, y, x1, y1, "tl")
+    const topRight = nearPoint(x, y, x1, y1, "tr")
+    const bottomLeft = nearPoint(x, y, x1, y1, "bl")
+    const bottomRight = nearPoint(x, y, x1, y1, "br")
 
-    return x >= minX && x <= maxX && y >= minY && y <= maxY;
+    const inside =  x >= x1 && x <= x2 && y >= y1 && y <= y2 ? "inside" : null;
+    return topLeft ?? topRight ?? bottomLeft ?? bottomRight ?? inside;
   } else if (elementType === "line") {
     const a = { x: x1, y: y1}
     const b = { x: x2, y: y2} 
     const c = { x, y }
     const offset = distance(a, b) - (distance(a, c) + distance(b, c))
-    return Math.abs(offset) < 1
+    const start = nearPoint(x, y, x1, y1, "start")
+    const end = nearPoint(x, y, x2, y2, "end")
+    const inside =  Math.abs(offset) < 1  ? "inside" : null
+
+    return start ?? end ?? inside
     
-  } else if (elementType === "circle") {
-      const a = 1;
+  } else if (elementType === "ellipse") {
+    const radius = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+    const distance = Math.sqrt(Math.pow(x - x1, 2) + Math.pow(y - y1, 2));
+
+    return distance <= radius  ? "inside" : null;
       
   }
 }
 
 function getElementAyPosition(x: number, y:number, elements: any) {
-  return elements.toArray().find((element: any) => isWithinElement(x,y,element))
+  return elements.toArray()
+  .map((element: any) => ({stroke:element, position: positionWithinElement(x,y,element)}))
+  .find((element: any)=> element.position !== null);
 }
 
 export function DrawingCanvas() {
@@ -185,15 +198,22 @@ export function DrawingCanvas() {
     if (selectedElement == "selection"){
       
       const element = getElementAyPosition(clientX, clientY, ystrokes)
+      console.log(element.stroke.toArray())
       if (element) {
-        setAction("moving")
-        const offsetX = clientX - element.toArray()[0]["x1"]
-        const offsetY = clientY - element.toArray()[0]["y1"]
-        console.log(element.toArray())
-        const updatedElement = {...element.toArray()[0], offsetX, offsetY}
+        
+        const offsetX = clientX - element.stroke.toArray()[0]["x1"]
+        const offsetY = clientY - element.stroke.toArray()[0]["y1"]
+        console.log(element.stroke.toArray())
+        const updatedElement = {...element.stroke.toArray()[0], position:element.position, offsetX, offsetY}
         setSelectedElementId(updatedElement)
         console.log(updatedElement)
         console.log(selectedElementId)
+        if (element.position === "inside"){
+          setAction("moving")
+        } else {
+          setAction("resize")
+        }
+        
       }
     } else {
       setAction('drawing');
@@ -241,6 +261,42 @@ export function DrawingCanvas() {
       localElements.forEach(localElement => roughCanvas.draw(localElement.roughElement));
   }
 
+  function cursorForPosition(position: string) {
+    switch (position) {
+      case "tl":
+      case "br":
+      case "start":
+      case "end":
+        return "nwse-resize";
+      case "tr":
+      case "bl":
+        return "nesw-resize";
+      default:
+        return "move"
+
+    }
+
+  }
+
+  function resizeCoordinates(clientX: number, clientY: number, position: string, coordinates: any): {x1: number; y1: number; x2: number; y2: number}{
+    const {x1, y1, x2, y2} = coordinates
+    switch(position){
+      case "tl":
+      case "start":
+        return {x1: clientX, y1: clientY, x2, y2};
+      case "tr":
+        return {x1, y1: clientY, x2: clientX, y2};
+      case "bl":
+        return {x1: clientX, y1, x2, y2: clientY};
+      case "br":
+      case "end":
+        return {x1, y1, x2: clientX, y2: clientY}
+      default:
+        throw new Error(`Unsupported position`);
+
+    }
+
+  }
   function handleMouseMove(event: React.MouseEvent, selectedElement: any) {
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect();
     const clientX = event.clientX - rect.left;
@@ -252,6 +308,11 @@ export function DrawingCanvas() {
           
         } 
         
+    if (selectedElement === "selection") {
+      const eventElement = event.currentTarget as HTMLDivElement;
+      const element = getElementAyPosition(clientX, clientY, ystrokes);
+      eventElement.style.cursor =  element ? cursorForPosition(element.position) : "default"
+    }
     if (action === "drawing") {
 
       const index = ystrokes.toArray().length-1;
@@ -279,13 +340,53 @@ export function DrawingCanvas() {
         updateElements(id, newX1, newY1, newX1 + width, newY1 + height, elementType)
       }
       
+    } else if (action === "resize") {
+      if (selectedElementId){
+        console.log(selectedElementId)
+        let { elementType, id, position, x1, x2, y1, y2 } = selectedElementId;
+        const coordinates: any = { x1, x2, y1, y2 };
+        
+        // Reassign x1, y1, x2, y2 without redeclaring them
+        ({ x1, y1, x2, y2 } = resizeCoordinates(clientX, clientY, position, coordinates));
+        
+        updateElements(id, x1, y1, x2, y2, elementType);
+      }
     }
   
     
 
   };
 
+  function adjustElementCoordinates(element: any): {x1: number; y1: number; x2: number; y2: number} {
+    const {x1, y1, x2, y2, elementType} = element;
+    if(elementType === "rectangle") {
+      const minX = Math.min(x1, x2)
+      const maxX = Math.max(x1, x2)
+      const minY = Math.min(y1, y2)
+      const maxY = Math.max(y1, y2)
+      return {x1: minX, y1: minY, x2: maxX, y2: maxY}
+    } else if (elementType === "line") {
+      if (x1 < x2 || (x1 === x2 && y1 < y2)) {
+        return { x1, y1, x2, y2}
+      } else {
+        return {x1: x2, y1: y2, x2: x1, y2: y1}
+      }
+    }
+    throw new Error(`Unsupported elementType: ${elementType}`);
+  }
+
   const handleMouseUp = () => {
+
+    const index = ystrokes.toArray().length-1;
+    if (index<0) return
+    const { id, elementType } = ystrokes.toArray()[index].toArray()[0]
+    if (action === "drawing") {
+      const {x1, y1, x2, y2 } = adjustElementCoordinates(ystrokes.toArray()[index].toArray()[0])
+      console.log("Realigned")
+      updateElements(id, x1, y1, x2, y2, elementType)
+      
+
+    }
     setAction("none");
     setSelectedElementId(null)
     setLocalElements([]);
@@ -346,3 +447,5 @@ function createSession() {
     </>
   );
 }
+
+
