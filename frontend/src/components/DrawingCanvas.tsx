@@ -24,9 +24,9 @@ function positionWithinElement(x: number, y:number, element: any) {
   const {elementType, x1, x2, y1, y2} = element.toArray()[0] 
   if (elementType === "rectangle") {
     const topLeft = nearPoint(x, y, x1, y1, "tl")
-    const topRight = nearPoint(x, y, x1, y1, "tr")
-    const bottomLeft = nearPoint(x, y, x1, y1, "bl")
-    const bottomRight = nearPoint(x, y, x1, y1, "br")
+    const topRight = nearPoint(x, y, x2, y1, "tr")
+    const bottomLeft = nearPoint(x, y, x1, y2, "bl")
+    const bottomRight = nearPoint(x, y, x2, y2, "br")
 
     const inside =  x >= x1 && x <= x2 && y >= y1 && y <= y2 ? "inside" : null;
     return topLeft ?? topRight ?? bottomLeft ?? bottomRight ?? inside;
@@ -45,8 +45,14 @@ function positionWithinElement(x: number, y:number, element: any) {
     const radius = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
     const distance = Math.sqrt(Math.pow(x - x1, 2) + Math.pow(y - y1, 2));
 
-    return distance <= radius  ? "inside" : null;
-      
+    const topLeft = nearPoint(x, y, x1 -  (x2 - x1), y1 + (y1 - y2), "tl")
+    const topRight =  nearPoint(x, y, x2, y1, "tr")
+    const bottomLeft = nearPoint(x, y, x1, y2, "bl")
+    const bottomRight = nearPoint(x, y, x2, y2, "br")
+
+    const inside =  distance <= radius  ? "inside" : null;
+    
+    return topLeft ?? topRight ?? bottomLeft ?? bottomRight ?? inside;
   }
 }
 
@@ -126,7 +132,7 @@ export function DrawingCanvas() {
       awareness.current = provider.current.awareness
       
       if (awareness){
-        console.log("awareness")
+     
         awareness.current.setLocalStateField('user', {name: getRandomValueFromArray(usernames), color: getRandomValueFromArray(colorHexValues)})
         awareness.current.on('update', (event:any) => {
 
@@ -198,16 +204,15 @@ export function DrawingCanvas() {
     if (selectedElement == "selection"){
       
       const element = getElementAyPosition(clientX, clientY, ystrokes)
-      console.log(element.stroke.toArray())
+ 
       if (element) {
         
         const offsetX = clientX - element.stroke.toArray()[0]["x1"]
         const offsetY = clientY - element.stroke.toArray()[0]["y1"]
-        console.log(element.stroke.toArray())
+ 
         const updatedElement = {...element.stroke.toArray()[0], position:element.position, offsetX, offsetY}
         setSelectedElementId(updatedElement)
-        console.log(updatedElement)
-        console.log(selectedElementId)
+
         if (element.position === "inside"){
           setAction("moving")
         } else {
@@ -220,12 +225,12 @@ export function DrawingCanvas() {
     
     const id = ystrokes.toArray().length
     const element = createElement(id, clientX, clientY, clientX, clientY, selectedElement);
-    console.log(element)
+   
   
     ydoc.transact(() => {
       const currentPath = new Y.Array();
       currentPath.push([element]);
-      console.log(currentPath.toArray())
+   
       ystrokes.push([currentPath]);
     });
 
@@ -235,7 +240,7 @@ export function DrawingCanvas() {
   };
 
   function updateElements(id:number, x1: number, y1: number, x2: number, y2: number, elementType: string) {
-    console.log(localElements)
+
     const updatedElement = createElement(id, x1, y1, x2, y2, elementType);
       ydoc.transact(() => {
         const currentPath = new Y.Array();
@@ -245,7 +250,7 @@ export function DrawingCanvas() {
         ystrokes.insert(id, [currentPath]);
         
       });
-      console.log(ystrokes.toArray())
+
       const canvass = document.getElementById("canvas") as HTMLCanvasElement;
       const context = canvass.getContext("2d");
       const roughCanvas = rough.canvas(canvass);
@@ -253,9 +258,31 @@ export function DrawingCanvas() {
       
 
       ystrokes.toArray().forEach((strokeArray: any) => {
-        console.log(strokeArray)
+
         strokeArray.toArray().forEach((stroke: any) => {
           roughCanvas.draw(stroke.roughElement);
+
+          if (context && stroke.roughElement.shape === "ellipse"){
+              context.beginPath();
+            context.arc( stroke.x1 + (stroke.x2 - stroke.x1),  stroke.y1  + (stroke.y1 - stroke.y2), 5, 0, 2 * Math.PI);
+            context.stroke();  // Draw the first circle
+
+            context.beginPath()
+            context.arc(stroke.x2, stroke.y2, 5, 0, 2 * Math.PI);
+            context.stroke();  // Draw the first circle
+
+            context.beginPath()
+            context.arc(stroke.x1 - (stroke.x2 - stroke.x1), stroke.y2, 5, 0, 2 * Math.PI);
+            context.stroke();  // Draw the first circle
+
+            context.beginPath()
+            context.arc(stroke.x2  - 2 * (stroke.x2 - stroke.x1), stroke.y1   + (stroke.y1 - stroke.y2), 5, 0, 2 * Math.PI);
+            context.stroke();  // Draw the first circle
+
+            context.fillStyle = "#3357FF"
+            context.fill();
+          }
+          
         });
       });
       localElements.forEach(localElement => roughCanvas.draw(localElement.roughElement));
@@ -283,7 +310,7 @@ export function DrawingCanvas() {
     switch(position){
       case "tl":
       case "start":
-        return {x1: clientX, y1: clientY, x2, y2};
+        return {x1: clientX, y1: clientY , x2: x2, y2};
       case "tr":
         return {x1, y1: clientY, x2: clientX, y2};
       case "bl":
@@ -301,6 +328,8 @@ export function DrawingCanvas() {
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect();
     const clientX = event.clientX - rect.left;
     const clientY = event.clientY - rect.top;
+    console.log(clientX, clientY)
+
     if (awareness.current){
 
           awareness.current.setLocalStateField('pos', { x: clientX, y: clientY })
@@ -311,28 +340,30 @@ export function DrawingCanvas() {
     if (selectedElement === "selection") {
       const eventElement = event.currentTarget as HTMLDivElement;
       const element = getElementAyPosition(clientX, clientY, ystrokes);
+      // console.log(element.position)
       eventElement.style.cursor =  element ? cursorForPosition(element.position) : "default"
+      
+      
+      
     }
     if (action === "drawing") {
 
       const index = ystrokes.toArray().length-1;
-      if (ystrokes.toArray().length > 0){
-        console.log(ystrokes.toArray()[index].toArray())
-      }
+  
       
       
 
       const { x1, y1 } = ystrokes.toArray()[index].toArray()[0];
-      console.log(`x1: ${x1}`)
+    
       updateElements(index, x1, y1, clientX, clientY, selectedElement)
       
  
     } else if(action === "moving") {
       if (selectedElementId){
-        console.log(selectedElementId)
+       
         const {elementType, id, x1, x2, y1, y2, offsetX, offsetY} = selectedElementId
   
-        console.log(elementType)
+ 
         const width = x2 - x1;
         const height = y2 - y1;
         const newX1 = clientX - offsetX;
@@ -341,15 +372,22 @@ export function DrawingCanvas() {
       }
       
     } else if (action === "resize") {
+
       if (selectedElementId){
-        console.log(selectedElementId)
+
         let { elementType, id, position, x1, x2, y1, y2 } = selectedElementId;
         const coordinates: any = { x1, x2, y1, y2 };
         
         // Reassign x1, y1, x2, y2 without redeclaring them
-        ({ x1, y1, x2, y2 } = resizeCoordinates(clientX, clientY, position, coordinates));
+        ({ x1, y1, x2, y2 } = resizeCoordinates(clientX , clientY, position, coordinates));
+        console.log(clientX, clientY)
+        console.log(`x1: ${x1} y1: ${y1}`)
+        if (elementType === "ellipse") {
+          updateElements(id, x1 + (x2 - x1)/2, y1 + (y2 - y1)/2, x2, y2, elementType);
+        } else {
+          updateElements(id, x1 , y1 , x2, y2, elementType);
+        }
         
-        updateElements(id, x1, y1, x2, y2, elementType);
       }
     }
   
@@ -376,20 +414,20 @@ export function DrawingCanvas() {
   }
 
   const handleMouseUp = () => {
-
+    setAction("none");
+    setSelectedElementId(null)
+    setLocalElements([]);
     const index = ystrokes.toArray().length-1;
     if (index<0) return
     const { id, elementType } = ystrokes.toArray()[index].toArray()[0]
     if (action === "drawing") {
       const {x1, y1, x2, y2 } = adjustElementCoordinates(ystrokes.toArray()[index].toArray()[0])
-      console.log("Realigned")
+ 
       updateElements(id, x1, y1, x2, y2, elementType)
       
 
     }
-    setAction("none");
-    setSelectedElementId(null)
-    setLocalElements([]);
+    
     
     
     
@@ -422,7 +460,7 @@ function createSession() {
         roughElement = generator.circle(x1, y1, Math.abs(x2 - x1));
         break;
       case "ellipse":
-        roughElement = generator.ellipse(x1, y1, Math.abs(x2 - x1), Math.abs(y2 - y1));
+        roughElement = generator.ellipse(x1, y1, 2 * Math.abs(x2 - x1), 2 * Math.abs(y2 - y1));
         break;
       default:
         throw new Error(`Unknown element type: ${elementType}`);
