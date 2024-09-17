@@ -46,8 +46,8 @@ function positionWithinElement(x: number, y:number, element: any) {
     const distance = Math.sqrt(Math.pow(x - x1, 2) + Math.pow(y - y1, 2));
 
     const topLeft = nearPoint(x, y, x1 -  (x2 - x1), y1 + (y1 - y2), "tl")
-    const topRight =  nearPoint(x, y, x2, y1, "tr")
-    const bottomLeft = nearPoint(x, y, x1, y2, "bl")
+    const topRight =  nearPoint(x, y, x2, y1 - (y2 - y1), "tr")
+    const bottomLeft = nearPoint(x, y, x1 - (x2 - x1), y2, "bl")
     const bottomRight = nearPoint(x, y, x2, y2, "br")
 
     const inside =  distance <= radius  ? "inside" : null;
@@ -266,14 +266,20 @@ export function DrawingCanvas() {
               context.beginPath();
             context.arc( stroke.x1 + (stroke.x2 - stroke.x1),  stroke.y1  + (stroke.y1 - stroke.y2), 5, 0, 2 * Math.PI);
             context.stroke();  // Draw the first circle
+            context.fillStyle = "#3357FF"
+            context.fill();
 
             context.beginPath()
             context.arc(stroke.x2, stroke.y2, 5, 0, 2 * Math.PI);
             context.stroke();  // Draw the first circle
+            context.fillStyle = "#3357FF"
+            context.fill();
 
             context.beginPath()
             context.arc(stroke.x1 - (stroke.x2 - stroke.x1), stroke.y2, 5, 0, 2 * Math.PI);
             context.stroke();  // Draw the first circle
+            context.fillStyle = "#3357FF"
+            context.fill();
 
             context.beginPath()
             context.arc(stroke.x2  - 2 * (stroke.x2 - stroke.x1), stroke.y1   + (stroke.y1 - stroke.y2), 5, 0, 2 * Math.PI);
@@ -281,7 +287,47 @@ export function DrawingCanvas() {
 
             context.fillStyle = "#3357FF"
             context.fill();
+          } else if (context && stroke.roughElement.shape === "line") {
+            context.beginPath();
+            context.arc( stroke.x1,  stroke.y1, 5, 0, 2 * Math.PI);
+            context.stroke();  // Draw the first circle
+            context.fillStyle = "#3357FF"
+            context.fill();
+
+            context.beginPath()
+            context.arc(stroke.x2 , stroke.y2, 5, 0, 2 * Math.PI);
+            context.stroke();  // Draw the first circle
+
+            context.fillStyle = "#3357FF"
+            context.fill();
+          } else if(context && stroke.roughElement.shape === "rectangle") {
+
+            context.fillStyle = "#3357FF";
+            context.beginPath();
+            context.arc(stroke.x1 ,  stroke.y1, 5, 0, 2 * Math.PI);
+            context.fill();
+            context.stroke();  // Draw the first circle
+            context.closePath();
+
+            context.beginPath();
+            context.arc(stroke.x2, stroke.y2, 5, 0, 2 * Math.PI);
+            context.fill();
+            context.stroke();  // Draw the first circle  
+            context.closePath();
+
+            context.beginPath();
+            context.arc(stroke.x1 , stroke.y2, 5, 0, 2 * Math.PI);
+            context.fill();
+            context.stroke();  // Draw the first circle
+            context.closePath();
+
+            context.beginPath();
+            context.arc(stroke.x2, stroke.y1 , 5, 0, 2 * Math.PI);
+            context.fill();
+            context.stroke();  // Draw the first circle
+            context.closePath();
           }
+
           
         });
       });
@@ -383,7 +429,21 @@ export function DrawingCanvas() {
         console.log(clientX, clientY)
         console.log(`x1: ${x1} y1: ${y1}`)
         if (elementType === "ellipse") {
-          updateElements(id, x1 + (x2 - x1)/2, y1 + (y2 - y1)/2, x2, y2, elementType);
+          switch(position){
+            case "tl":
+              updateElements(id, x1 + (x2 - x1)/2, y1 + (y2 - y1)/2, x2, y2, elementType);
+              break;
+            case "tr":
+              updateElements(id, x1, y1 + (y2 - y1)/2, x2, y2, elementType);
+              break;
+            case "bl":
+              updateElements(id, x1 + (x2 - x1)/2, y1, x2, y2, elementType);
+              break
+            default:
+              updateElements(id, x1, y1, x2, y2, elementType);
+              break
+          }
+          
         } else {
           updateElements(id, x1 , y1 , x2, y2, elementType);
         }
