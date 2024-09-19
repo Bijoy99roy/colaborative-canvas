@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { WebrtcProvider } from 'y-webrtc';
 import { v4 as uuidv4 } from 'uuid';
 import { DrawingElementBar } from './DrawingElementBar';
+import { DrawingSideBar } from './DrawingSideBar';
 
 //TODO: Fix all the types 
 
@@ -68,8 +69,11 @@ export function DrawingCanvas() {
   const [selectedElement, setSelectedElement] = useState("selection");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<any>(null);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
   const provider = useRef<any>(null);
   const awareness = useRef<any>(null);
+  const [backgroundColor, setBackgroundColor] = useState<string>("white");
+  const [isMouseUp, setIsMouseUp] = useState<boolean>(true);
 
 
   const ystrokes: Y.Array<Y.Array<any>> = ydoc.getArray('strokes');
@@ -190,7 +194,7 @@ export function DrawingCanvas() {
 
   const handleMouseDown = (event: React.MouseEvent, selectedElement: any) => {
     // Below calculation helps in correcting the mouse pointer that is getting offset due to other components
-    
+    setIsMouseUp(false)
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect();
     const clientX = event.clientX - rect.left;
     const clientY = event.clientY - rect.top;
@@ -212,7 +216,7 @@ export function DrawingCanvas() {
  
         const updatedElement = {...element.stroke.toArray()[0], position:element.position, offsetX, offsetY}
         setSelectedElementId(updatedElement)
-
+        setSelectedItem(updatedElement)
         if (element.position === "inside"){
           setAction("moving")
         } else {
@@ -262,6 +266,7 @@ export function DrawingCanvas() {
         strokeArray.toArray().forEach((stroke: any) => {
           roughCanvas.draw(stroke.roughElement);
 
+          if (selectedElement !== "selection") return
           if (context && stroke.roughElement.shape === "ellipse"){
               context.beginPath();
             context.arc( stroke.x1 + (stroke.x2 - stroke.x1),  stroke.y1  + (stroke.y1 - stroke.y2), 5, 0, 2 * Math.PI);
@@ -370,6 +375,8 @@ export function DrawingCanvas() {
     }
 
   }
+
+  
   function handleMouseMove(event: React.MouseEvent, selectedElement: any) {
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect();
     const clientX = event.clientX - rect.left;
@@ -384,6 +391,7 @@ export function DrawingCanvas() {
         } 
         
     if (selectedElement === "selection") {
+
       const eventElement = event.currentTarget as HTMLDivElement;
       const element = getElementAyPosition(clientX, clientY, ystrokes);
       // console.log(element.position)
@@ -455,6 +463,15 @@ export function DrawingCanvas() {
 
   };
 
+  function changeStyle(color: string){
+    setBackgroundColor(color)
+    if (selectedItem){
+
+      let { elementType, id, position, x1, x2, y1, y2 } = selectedItem;
+      updateElements(id, x1 , y1 , x2, y2, elementType);
+    }
+  }
+
   function adjustElementCoordinates(element: any): {x1: number; y1: number; x2: number; y2: number} {
     const {x1, y1, x2, y2, elementType} = element;
     if(elementType === "rectangle") {
@@ -474,6 +491,7 @@ export function DrawingCanvas() {
   }
 
   const handleMouseUp = () => {
+    setIsMouseUp(true)
     setAction("none");
     setSelectedElementId(null)
     setLocalElements([]);
@@ -511,16 +529,16 @@ function createSession() {
 
     switch (elementType) {
       case "line":
-        roughElement = generator.line(x1, y1, x2, y2);
+        roughElement = generator.line(x1, y1, x2, y2, { stroke: "black"});
         break;
       case "rectangle":
-        roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1);
+        roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1, { fill: backgroundColor , fillStyle: "solid"});
         break;
       case "circle":
-        roughElement = generator.circle(x1, y1, Math.abs(x2 - x1));
+        roughElement = generator.circle(x1, y1, Math.abs(x2 - x1), { fill: backgroundColor , fillStyle: "solid"});
         break;
       case "ellipse":
-        roughElement = generator.ellipse(x1, y1, 2 * Math.abs(x2 - x1), 2 * Math.abs(y2 - y1));
+        roughElement = generator.ellipse(x1, y1, 2 * Math.abs(x2 - x1), 2 * Math.abs(y2 - y1), { fill: backgroundColor , fillStyle: "solid"});
         break;
       default:
         throw new Error(`Unknown element type: ${elementType}`);
@@ -536,12 +554,16 @@ function createSession() {
       <DrawingElementBar onSelectElement={setSelectedElement} />
       <button onClick={createSession} className='my-2 px-2 bg-violet-400 text-white rounded-md'>Share</button>
     </div>
-      
-      <canvas id="canvas" width={window.innerWidth} height={window.innerHeight}
+    <div className={`absolute top-[100px] left-[50px] z-[100] ${isMouseUp ? "" : "pointer-events-none"}`} >
+          <DrawingSideBar onSelectBackgroundColor={setBackgroundColor} changeStyle={changeStyle}/>
+        </div>
+      <canvas className='-z-50' id="canvas" width={window.innerWidth} height={window.innerHeight}
         onMouseDown={(e) => handleMouseDown(e, selectedElement)}
         onMouseMove={(e) => handleMouseMove(e, selectedElement)}
         onMouseUp={handleMouseUp}
-      />
+      >
+        
+      </canvas>
     </>
   );
 }
